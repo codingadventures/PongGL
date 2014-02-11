@@ -2,6 +2,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+using System.Timers;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
@@ -23,10 +24,10 @@ namespace PongGL
         private const float PaddleSpeed = 0.02f;
         private const int WindowWidth = 800;
         private const int WindowHeight = 600;
-        private const float BallSpeedX = 0.01f;
-        private const float BallSpeedY = 0.002f;
+        private const float BallSpeedX = 0.012f;
+        private const float BallSpeedY = 0.005f;
 
-        private int _frameCounterAi = 0;
+        private readonly Timer _timer = new Timer(TimeSpan.FromSeconds(4).TotalMilliseconds);
 
         private Matrix4 _projection;
 
@@ -34,15 +35,11 @@ namespace PongGL
         struct Sprite
         {
             public Vertex[] Vertices;
-            //public bool isCollidable;
-
         }
 
         [StructLayout(LayoutKind.Sequential)]
         struct Vertex
         {
-            public Vector2 TexCoord;
-
             public Vector2 Position;
         }
 
@@ -50,8 +47,13 @@ namespace PongGL
 
         /// <summary>Creates a 800x600 window with the specified title.</summary>
         public Game()
-            : base(WindowWidth, WindowHeight, GraphicsMode.Default, "OpenTK Quick Start Sample")
+            : base(WindowWidth, WindowHeight, GraphicsMode.Default, "Funny PongGL")
         {
+            //Increase speed as time goes by
+            _timer.Elapsed += (sender, args) =>
+            {
+                _dx += 0.002f * Math.Sign(_dx);
+            };
 
             VSync = VSyncMode.On;
 
@@ -75,6 +77,7 @@ namespace PongGL
             _sprites[1].Vertices[1].Position.Y = 0.15f;
 
             _sprites[2].Vertices = new Vertex[4];
+            _timer.Start();
         }
 
         /// <summary>Load resources here.</summary>
@@ -121,30 +124,36 @@ namespace PongGL
             if (Keyboard[Key.Escape])
                 Exit();
 
-            if (Keyboard[Key.Up])
+            if (Keyboard[Key.W])
             {
-                if (_y <= 1f)
+                if (_sprites[0].Vertices[1].Position.Y <= 1f)
                 {
                     _sprites[0].Vertices[0].Position.Y += PaddleSpeed;
                     _sprites[0].Vertices[1].Position.Y += PaddleSpeed;
                 }
             }
-            if (Keyboard[Key.W])
+            if (Keyboard[Key.Up])
             {
-                _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
-                _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
+                if (_sprites[1].Vertices[1].Position.Y <= 1f)
+                {
+                    _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
+
+                    _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
+                }
+            }
+
+            if (Keyboard[Key.Down])
+            {
+                if (_sprites[1].Vertices[0].Position.Y >= -1f)
+                {
+                    _sprites[1].Vertices[0].Position.Y -= PaddleSpeed;
+                    _sprites[1].Vertices[1].Position.Y -= PaddleSpeed;
+                }
             }
 
             if (Keyboard[Key.S])
             {
-                _sprites[1].Vertices[0].Position.Y -= PaddleSpeed;
-                _sprites[1].Vertices[1].Position.Y -= PaddleSpeed;
-            }
-
-
-            if (Keyboard[Key.Down])
-            {
-                if (_y >= -1f)
+                if (_sprites[0].Vertices[0].Position.Y >= -1f)
                 {
                     _sprites[0].Vertices[0].Position.Y -= PaddleSpeed;
                     _sprites[0].Vertices[1].Position.Y -= PaddleSpeed;
@@ -152,9 +161,12 @@ namespace PongGL
                 }
             }
 
-
             CollisionDetection();
-            AI();
+            //if (_ballSpeedX >= 0.1f || _ballSpeedY >= 0.1f)
+            //{
+            //    this.p;
+            //}
+            //   AI();
         }
 
         private void CollisionDetection()
@@ -162,7 +174,6 @@ namespace PongGL
             //foreach sprite
             for (var i = 0; i < 2; i++)
             {
-
                 //foreach vertex of the ball
                 for (float j = 0; j < 360; j += 10)
                 {
@@ -171,15 +182,20 @@ namespace PongGL
                     if (!(xx >= _sprites[i].Vertices[0].Position.X) || !(xx <= _sprites[i].Vertices[1].Position.X) ||
                         !(yy >= _sprites[i].Vertices[0].Position.Y) || !(yy <= _sprites[i].Vertices[1].Position.Y))
                         continue;
-                    //collision
-                    _dx = -_dx;
+                    {
+                        //collision
+                        _dx = -_dx;
+
+                        //throw the ball away
+                        _ballCenterX += (_ballCenterX - xx + 0.01f);
+                    }
                     return;
                 }
             }
 
             if (_ballCenterX <= -1)
             {
-                _scorePlayer1++;
+                _scorePlayer1++;//score 1
                 _ballCenterX = 0;
                 _ballCenterY = 0;
                 _dx *= -1;
@@ -198,15 +214,12 @@ namespace PongGL
 
         private void AI()
         {
-            _frameCounterAi++;
-
-            if (_frameCounterAi < 2) return;
 
             var paddleCenter = (_sprites[1].Vertices[0].Position.Y + _sprites[1].Vertices[1].Position.Y) / 2;
 
             if (_dx < 0)
             {
-                if (paddleCenter - _ballCenterY < 0.01)
+                if (paddleCenter - _ballCenterY <= 0)
                 {
                     _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
                     _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
@@ -219,7 +232,9 @@ namespace PongGL
             }
             else
             {
-                if (paddleCenter > 0.01)
+                if (paddleCenter <= 0.1 && paddleCenter >= -0.1) return;
+
+                if (paddleCenter > 0)
                 {
                     _sprites[1].Vertices[0].Position.Y -= PaddleSpeed;
                     _sprites[1].Vertices[1].Position.Y -= PaddleSpeed;
@@ -228,12 +243,8 @@ namespace PongGL
                 {
                     _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
                     _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
-
                 }
             }
-
-
-            _frameCounterAi = 0; 
         }
 
         /// <summary>
@@ -308,13 +319,9 @@ namespace PongGL
         [STAThread]
         static void Main()
         {
-
-            // The 'using' idiom guarantees proper resource cleanup.
-            // We request 30 UpdateFrame events per second, and unlimited
-            // RenderFrame events (as fast as the computer can handle).
             using (var game = new Game())
             {
-                game.Run(30.0);
+                game.Run(60.0);
             }
         }
     }
