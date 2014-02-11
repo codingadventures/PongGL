@@ -1,87 +1,89 @@
 ﻿// Released to the public domain. Use, modify and relicense at will.
 
 using System;
-
+using System.Runtime.InteropServices;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
-
-using OpenTK.Audio;
-using OpenTK.Audio.OpenAL;
 using OpenTK.Input;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Drawing;
-using System.Drawing.Imaging;
 using QuickFont;
 
-namespace StarterKit
+namespace PongGL
 {
-    class Game : GameWindow
+    public class Game : GameWindow
     {
+        private readonly Sprite[] _sprites;
+        private QFont _heading1;
+        private int _scorePlayer1, _scorePlayer2;
 
-        Sprite[] sprites;
-        QFont heading1;
-        int scorePlayer1, scorePlayer2;
+        private readonly float _y;
+        private float _dx, _dy, _ballCenterX, _ballCenterY;
+
+        private const float R = 1 / 20 + 0.02f;
+        private const float PaddleSpeed = 0.02f;
+        private const int WindowWidth = 800;
+        private const int WindowHeight = 600;
+        private const float BallSpeedX = 0.01f;
+        private const float BallSpeedY = 0.002f;
+
+        private int _frameCounterAi = 0;
+
+        private Matrix4 _projection;
+
+
         struct Sprite
         {
-            public Vertex[] vertices;
+            public Vertex[] Vertices;
             //public bool isCollidable;
 
         }
 
         [StructLayout(LayoutKind.Sequential)]
         struct Vertex
-        { // mimic InterleavedArrayFormat.T2fN3fV3f
+        {
             public Vector2 TexCoord;
 
             public Vector2 Position;
         }
-        Random RandomClass = new Random();
-        float error;
+
+        readonly Random _randomClass = new Random();
+
         /// <summary>Creates a 800x600 window with the specified title.</summary>
         public Game()
-            : base(800, 600, GraphicsMode.Default, "OpenTK Quick Start Sample")
+            : base(WindowWidth, WindowHeight, GraphicsMode.Default, "OpenTK Quick Start Sample")
         {
+
             VSync = VSyncMode.On;
 
-            cx = (float)RandomClass.NextDouble();
-            cy = (float)RandomClass.NextDouble();
-            dx = 0.01f;
-            dy = 0.002f;
+            _ballCenterX = (float)_randomClass.NextDouble();
+            _ballCenterY = (float)_randomClass.NextDouble();
+            _dx = BallSpeedX;
+            _dy = BallSpeedY;
 
-            sprites = new Sprite[3];
-            sprites[0].vertices = new Vertex[2];
-            sprites[1].vertices = new Vertex[2];
-            //sprites[0].vertices[0].Normal = Vector3.UnitX;
+            _sprites = new Sprite[3];
+            _sprites[0].Vertices = new Vertex[2];
+            _sprites[1].Vertices = new Vertex[2];
 
-            sprites[0].vertices[0].Position.X = -0.025f + 0.8f;
-            sprites[0].vertices[0].Position.Y = -0.15f;
-            sprites[0].vertices[1].Position.X = 0.025f + 0.8f;
-            sprites[0].vertices[1].Position.Y = 0.15f;
-            sprites[1].vertices[0].Position.X = -0.025f - 0.8f;
-            sprites[1].vertices[0].Position.Y = -0.15f;
-            sprites[1].vertices[1].Position.X = 0.025f - 0.8f;
-            sprites[1].vertices[1].Position.Y = 0.15f;
+            _sprites[0].Vertices[0].Position.X = -0.025f + 0.8f;
+            _sprites[0].Vertices[0].Position.Y = -0.15f;
+            _sprites[0].Vertices[1].Position.X = 0.025f + 0.8f;
+            _sprites[0].Vertices[1].Position.Y = 0.15f;
 
-            sprites[2].vertices = new Vertex[4];
+            _sprites[1].Vertices[0].Position.X = -0.025f - 0.8f;
+            _sprites[1].Vertices[0].Position.Y = -0.15f;
+            _sprites[1].Vertices[1].Position.X = 0.025f - 0.8f;
+            _sprites[1].Vertices[1].Position.Y = 0.15f;
 
-
-
-
+            _sprites[2].Vertices = new Vertex[4];
         }
 
-        private float x = 0.8f, y;
-        private float dx, dy, cx, cy, r = 1 / 20 + 0.02f;
-
-        private Matrix4 projection;
         /// <summary>Load resources here.</summary>
         /// <param name="e">Not used.</param>
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
 
-            heading1 = QFont.FromQFontFile("woodenFont.qfont", 1.0f, new QFontLoaderConfiguration(true));
+            _heading1 = QFont.FromQFontFile("woodenFont.qfont", 1.0f, new QFontLoaderConfiguration(true));
 
             GL.ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GL.Disable(EnableCap.DepthTest);
@@ -103,9 +105,9 @@ namespace StarterKit
 
             GL.Viewport(ClientRectangle.X, ClientRectangle.Y, ClientRectangle.Width, ClientRectangle.Height);
 
-            projection = Matrix4.CreatePerspectiveFieldOfView((float)Math.PI / 4, Width / (float)Height, 1.0f, 64.0f);
+            _projection = Matrix4.CreatePerspectiveFieldOfView((float)Math.PI / 4, Width / (float)Height, 1.0f, 64.0f);
             GL.MatrixMode(MatrixMode.Projection);
-            GL.LoadMatrix(ref projection);
+            GL.LoadMatrix(ref _projection);
         }
 
         /// <summary>
@@ -121,31 +123,31 @@ namespace StarterKit
 
             if (Keyboard[Key.Up])
             {
-                if (y <= 1f)
+                if (_y <= 1f)
                 {
-                    sprites[0].vertices[0].Position.Y += 0.02f;
-                    sprites[0].vertices[1].Position.Y += 0.02f;
+                    _sprites[0].Vertices[0].Position.Y += PaddleSpeed;
+                    _sprites[0].Vertices[1].Position.Y += PaddleSpeed;
                 }
             }
             if (Keyboard[Key.W])
             {
-                sprites[1].vertices[0].Position.Y += 0.02f;
-                sprites[1].vertices[1].Position.Y += 0.02f;
+                _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
+                _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
             }
 
             if (Keyboard[Key.S])
             {
-                sprites[1].vertices[0].Position.Y -= 0.02f;
-                sprites[1].vertices[1].Position.Y -= 0.02f;
+                _sprites[1].Vertices[0].Position.Y -= PaddleSpeed;
+                _sprites[1].Vertices[1].Position.Y -= PaddleSpeed;
             }
 
 
             if (Keyboard[Key.Down])
             {
-                if (y >= -1f)
+                if (_y >= -1f)
                 {
-                    sprites[0].vertices[0].Position.Y -= 0.02f;
-                    sprites[0].vertices[1].Position.Y -= 0.02f;
+                    _sprites[0].Vertices[0].Position.Y -= PaddleSpeed;
+                    _sprites[0].Vertices[1].Position.Y -= PaddleSpeed;
 
                 }
             }
@@ -158,85 +160,80 @@ namespace StarterKit
         private void CollisionDetection()
         {
             //foreach sprite
-            for (int i = 0; i < 2; i++)
+            for (var i = 0; i < 2; i++)
             {
 
                 //foreach vertex of the ball
                 for (float j = 0; j < 360; j += 10)
                 {
-                    float xx = cx + r * (float)Math.Cos(j * Math.PI / 180);
-                    float yy = cy + r * (float)Math.Sin(j * Math.PI / 180);
-                    if (xx >= sprites[i].vertices[0].Position.X
-                        && xx <= sprites[i].vertices[1].Position.X
-                        && yy >= sprites[i].vertices[0].Position.Y
-                        && yy <= sprites[i].vertices[1].Position.Y)
-                    {
-                        //collision
-                        dx = -dx;
-                        return;
-                    }
+                    var xx = _ballCenterX + R * (float)Math.Cos(j * Math.PI / 180);
+                    var yy = _ballCenterY + R * (float)Math.Sin(j * Math.PI / 180);
+                    if (!(xx >= _sprites[i].Vertices[0].Position.X) || !(xx <= _sprites[i].Vertices[1].Position.X) ||
+                        !(yy >= _sprites[i].Vertices[0].Position.Y) || !(yy <= _sprites[i].Vertices[1].Position.Y))
+                        continue;
+                    //collision
+                    _dx = -_dx;
+                    return;
                 }
             }
 
-            if (cx <= -1)
+            if (_ballCenterX <= -1)
             {
-                scorePlayer1++;
-                cx = 0;
-                cy = 0;
-                dx *= -1;
+                _scorePlayer1++;
+                _ballCenterX = 0;
+                _ballCenterY = 0;
+                _dx *= -1;
             }
-            if (cx >= 1)
+            if (_ballCenterX >= 1)
             {
-                scorePlayer2++;//score 2
-                cx = 0;
-                cy = 0;
-                dy *= -1;
+                _scorePlayer2++;//score 2
+                _ballCenterX = 0;
+                _ballCenterY = 0;
+                _dy *= -1;
             }
 
-            if (cy <= -1 || cy >= 1)
-                dy = -dy;
-
-
-
-
-
+            if (_ballCenterY <= -1 || _ballCenterY >= 1)
+                _dy = -_dy;
         }
 
         private void AI()
         {
+            _frameCounterAi++;
 
-            //I have to follow the ball
-            if (dx > 0)
+            if (_frameCounterAi < 2) return;
+
+            var paddleCenter = (_sprites[1].Vertices[0].Position.Y + _sprites[1].Vertices[1].Position.Y) / 2;
+
+            if (_dx < 0)
             {
-
-                if (sprites[1].vertices[0].Position.Y + 0.15f - 0.5f >= 0)
+                if (paddleCenter - _ballCenterY < 0.01)
                 {
-                    sprites[1].vertices[0].Position.Y += 0.015f;
-                    sprites[1].vertices[1].Position.Y += 0.015f;
-
+                    _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
+                    _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
                 }
                 else
                 {
-                    sprites[1].vertices[0].Position.Y -= 0.015f;
-                    sprites[1].vertices[1].Position.Y -= 0.015f;
+                    _sprites[1].Vertices[0].Position.Y -= PaddleSpeed;
+                    _sprites[1].Vertices[1].Position.Y -= PaddleSpeed;
                 }
             }
             else
             {
-                if (cy - sprites[1].vertices[0].Position.Y >= 0)
+                if (paddleCenter > 0.01)
                 {
-                    sprites[1].vertices[0].Position.Y += 0.015f;
-                    sprites[1].vertices[1].Position.Y += 0.015f;
-
+                    _sprites[1].Vertices[0].Position.Y -= PaddleSpeed;
+                    _sprites[1].Vertices[1].Position.Y -= PaddleSpeed;
                 }
                 else
                 {
-                    sprites[1].vertices[0].Position.Y -= 0.015f;
-                    sprites[1].vertices[1].Position.Y -= 0.015f;
+                    _sprites[1].Vertices[0].Position.Y += PaddleSpeed;
+                    _sprites[1].Vertices[1].Position.Y += PaddleSpeed;
+
                 }
-
-
             }
+
+
+            _frameCounterAi = 0; 
         }
 
         /// <summary>
@@ -249,7 +246,7 @@ namespace StarterKit
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            Matrix4 modelview = Matrix4.LookAt(Vector3.Zero, Vector3.UnitZ, Vector3.UnitY);
+            var modelview = Matrix4.LookAt(Vector3.Zero, Vector3.UnitZ, Vector3.UnitY);
             GL.MatrixMode(MatrixMode.Projection);
             GL.LoadMatrix(ref modelview);
 
@@ -258,8 +255,8 @@ namespace StarterKit
 
             GL.PushMatrix();
             GL.Translate(Width * 0.5f, 0, 0f);
-            string score = string.Format("{0} - {1}", scorePlayer1, scorePlayer2);
-            heading1.Print(score, QFontAlignment.Centre);
+            var score = string.Format("{0} - {1}", _scorePlayer1, _scorePlayer2);
+            _heading1.Print(score, QFontAlignment.Centre);
 
             GL.PopMatrix();
 
@@ -269,21 +266,21 @@ namespace StarterKit
             GL.Disable(EnableCap.Texture2D);
             GL.Begin(BeginMode.Quads);
             GL.Color3(1.0f, 0.0f, 0.0f);
-            GL.Vertex2(sprites[0].vertices[0].Position.X, sprites[0].vertices[0].Position.Y);
-            GL.Vertex2(sprites[0].vertices[1].Position.X, sprites[0].vertices[0].Position.Y);
-            GL.Vertex2(sprites[0].vertices[1].Position.X, sprites[0].vertices[1].Position.Y);
-            GL.Vertex2(sprites[0].vertices[0].Position.X, sprites[0].vertices[1].Position.Y);
+            GL.Vertex2(_sprites[0].Vertices[0].Position.X, _sprites[0].Vertices[0].Position.Y);
+            GL.Vertex2(_sprites[0].Vertices[1].Position.X, _sprites[0].Vertices[0].Position.Y);
+            GL.Vertex2(_sprites[0].Vertices[1].Position.X, _sprites[0].Vertices[1].Position.Y);
+            GL.Vertex2(_sprites[0].Vertices[0].Position.X, _sprites[0].Vertices[1].Position.Y);
 
-            GL.Vertex2(sprites[0].vertices[1].Position);
+            GL.Vertex2(_sprites[0].Vertices[1].Position);
 
             GL.End();
 
 
             GL.Color3(0.0f, 1.0f, 0.0f);
-            GL.Rect(sprites[1].vertices[0].Position.X
-                 , sprites[1].vertices[0].Position.Y
-                 , sprites[1].vertices[1].Position.X
-                 , sprites[1].vertices[1].Position.Y);
+            GL.Rect(_sprites[1].Vertices[0].Position.X
+                 , _sprites[1].Vertices[0].Position.Y
+                 , _sprites[1].Vertices[1].Position.X
+                 , _sprites[1].Vertices[1].Position.Y);
 
 
             GL.LoadIdentity();
@@ -293,16 +290,13 @@ namespace StarterKit
 
             GL.Color3(1.0f, 1.0f, 1.0f);
 
-            GL.Vertex2(cx, cy);
+            GL.Vertex2(_ballCenterX, _ballCenterY);
 
 
             GL.End();
 
-
-
-
-            cx += dx;
-            cy += dy;
+            _ballCenterX += _dx;
+            _ballCenterY += _dy;
 
             GL.Flush();
             SwapBuffers();
@@ -318,7 +312,7 @@ namespace StarterKit
             // The 'using' idiom guarantees proper resource cleanup.
             // We request 30 UpdateFrame events per second, and unlimited
             // RenderFrame events (as fast as the computer can handle).
-            using (Game game = new Game())
+            using (var game = new Game())
             {
                 game.Run(30.0);
             }
