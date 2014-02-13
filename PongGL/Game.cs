@@ -20,6 +20,7 @@ namespace PongGL
         private readonly Timer _timer = new Timer(TimeSpan.FromSeconds(2).TotalMilliseconds);
         private Matrix4 _projection;
         private readonly Random _randomClass = new Random();
+        private bool _isAiEnable = false;
         #endregion
 
         #region [ Constants ]
@@ -152,12 +153,15 @@ namespace PongGL
                 }
             }
 
+            if (Keyboard[Key.Space])
+            {
+                _isAiEnable = !_isAiEnable;
+            }
+
             CollisionDetection();
-            //if (_ballSpeedX >= 0.1f || _ballSpeedY >= 0.1f)
-            //{
-            //    this.p;
-            //}
-            //   AI();
+         
+            if (_isAiEnable)
+                Ai();
         }
 
         private void CollisionDetection()
@@ -184,23 +188,24 @@ namespace PongGL
                 }
             }
 
+            if (_ballCenterY <= -1 || _ballCenterY >= 1)
+            {
+                _dy = -_dy;
+                return;
+            }
+
             if (_ballCenterX <= -1)
             {
                 _scorePlayer1++;//score 1
-                _ballCenterX = 0;
-                _ballCenterY = 0;
-                _dx = BallSpeedX * -1;
+                ResetBall();
             }
             if (_ballCenterX >= 1)
             {
                 _scorePlayer2++;//score 2
-                _ballCenterX = 0;
-                _ballCenterY = 0;
-                _dy = BallSpeedY * -1;
+                ResetBall();
             }
 
-            if (_ballCenterY <= -1 || _ballCenterY >= 1)
-                _dy = -_dy;
+
         }
 
         private void Ai()
@@ -210,6 +215,10 @@ namespace PongGL
 
             if (_dx < 0)
             {
+                if (paddleCenter - _ballCenterY<= -.01 && paddleCenter + _ballCenterX>=.1)
+                    return;
+                
+
                 if (paddleCenter - _ballCenterY <= 0)
                 {
                     _sprites[PlayerTwo].Vertices[Bottom].Y += PaddleSpeed;
@@ -292,6 +301,14 @@ namespace PongGL
             SwapBuffers();
         }
 
+        private void ResetBall()
+        {
+            _ballCenterX = 0;
+            _ballCenterY = 0;
+            _dx = BallSpeedX;
+            _dy = (float)Math.Sin(30f * Math.PI / 180) * _dy;
+
+        }
         private void SetBallSpeed(Sprite player)
         {
             var currentVelocity = Math.Sqrt(_dx * _dx + _dy * _dy);
